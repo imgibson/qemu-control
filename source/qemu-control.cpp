@@ -54,7 +54,6 @@ public:
 
 namespace {
     constexpr LPCTSTR kMutexName = _T("qemu-control-c154b33e36c329488700dae19dae8ddf");
-    constexpr LPCTSTR kFilename = _T("qemu-control.ini");
     constexpr LPCTSTR kSection = _T("QEMU");
 
     struct {
@@ -67,7 +66,7 @@ int WINAPI _tWinMain(_In_ HINSTANCE hInst, _In_opt_ HINSTANCE hPrevInst, _In_ LP
         if (GetLastError() == ERROR_ALREADY_EXISTS) {
             return 0;
         } else {
-            if (Params* params = Params::create(inst.params, kFilename, kSection)) {
+            if (Params* params = Params::create(inst.params, cmdParam, kSection)) {
                 if (lstrcmp(params->szCommand, _T("")) != 0) {
                     SHELLEXECUTEINFO sh{
                         .cbSize = sizeof(sh),
