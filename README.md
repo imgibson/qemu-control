@@ -8,7 +8,7 @@ QEMU is not protected by a startup mutex and multiple instances can be launched 
 
 ## Usage
 
-Create an <code>ini</code> file named <code>qemu-control.ini</code> with the following contents and launch QEMU Control.
+Create an <code>ini</code> file named i.e. <code>qemu-control.ini</code> with the following contents and launch QEMU Control with the filename as argument.
 
 ```
 [QEMU]
