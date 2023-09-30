@@ -13,6 +13,12 @@ Create an <code>ini</code> file named i.e. <code>qemu-control.ini</code> with th
 ```
 [QEMU]
 Command="<qemu-path-to-executable>"
-Arguments="<qemu-command-line-arguments>"
 StartupPath="<qemu-startup-path>"
+Boot="<boot-args>"
+Machine="<machine-args>"
+Display="<display-args>"
+Clock="<clock-args>"
+Tablet="<tablet-args>"
+Virtual="<virtualization-args>"
+Network="<network-args>"
 ```
