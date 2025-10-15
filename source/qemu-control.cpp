@@ -40,52 +40,45 @@ public:
     }
 
     template <std::size_t N, typename... Types>
-    static void print(char (&buf)[N], const char* fmt, Types... args) noexcept {
-        static_assert(N > 0);
+    static void print(char (&buf)[N], const char* fmt, Types... args) noexcept
+        requires (N > 0) {
         std::size_t i = 0;
-        auto copyFromString = [&buf, &i](const char* str) noexcept -> void {
+        [[maybe_unused]] const auto copyFromString = [&buf, &i](const char* str) noexcept -> void {
             do {
                 buf[i++] = *str++;
-            } while (*str != '\0' && i < (N - 1));
+            } while (*str != '\0' && i < N - 1);
         };
-        auto copyFromFormat = [&buf, &fmt, &i]() noexcept -> bool {
+        const auto copyFromFormat = [&buf, &fmt, &i]() noexcept -> bool {
             do {
-                if (*fmt == '%') {
-                    ++fmt;
-                    if (*fmt != '%') {
-                        return true;
-                    }
+                if (*fmt == '%' && *++fmt != '%') {
+                    return true;
                 }
                 buf[i++] = *fmt++;
-            } while (*fmt != '\0' && i < (N - 1));
+            } while (*fmt != '\0' && i < N - 1);
             return false;
         };
-        if (*fmt != '\0') {
-            bool foundSpec = copyFromFormat();
-            (
-                [&]<typename T>(T value) noexcept -> void {
+        (
+            [&]<typename T>(T value) noexcept -> void {
+                if (*fmt != '\0' && i < N - 1) {
+                    const bool foundSpec = copyFromFormat();
                     if (foundSpec != false && *fmt != '\0') {
-                        char spec = *fmt++;
-                        if constexpr (std::is_same_v<T, const char*> || std::is_same_v<T, char*>) {
+                        const char spec = *fmt++;
+                        if constexpr (std::is_same_v<T, const char*> ||
+                                      std::is_same_v<T, char*>) {
                             if (spec == 's') {
                                 copyFromString(value);
                             }
                         } else {
                             static_assert(std::is_same_v<T, void>);
                         }
-                        if (*fmt != '\0' && i < (N - 1)) {
-                            foundSpec = copyFromFormat();
-                        }
                     }
-                }(args),
-                ...);
-            if (*fmt != '\0') {
-                if (foundSpec != false) {
-                    buf[i++] = '%';
                 }
-                if (i < (N - 1)) {
-                    copyFromString(fmt);
-                }
+            }(args),
+            ...);
+        while (*fmt != '\0' && i < N - 1) {
+            const bool foundSpec = copyFromFormat();
+            if (foundSpec != false && *fmt != '\0') {
+                buf[i++] = *fmt++;
             }
         }
         buf[i] = '\0';
