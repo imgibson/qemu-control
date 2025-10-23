@@ -1,4 +1,4 @@
-﻿/** 
+﻿/**
  *
  * @author Anders Lind (96395432+imgibson@users.noreply.github.com)
  * @date 2023-05-01
@@ -6,93 +6,78 @@
  */
 
 #define WIN32_LEAN_AND_MEAN
-#include <Windows.h>
+#include <windows.h>
 #include <tchar.h>
 #include <shellapi.h>
 
 #include "resource.h"
 
-#include <cstdint>
+#include <cstdlib>
 #include <type_traits>
 
-template <std::size_t M>
+template <SIZE_T M>
 class FormatBuffer final {
 private:
-    char m_buffer[M];
+    TCHAR m_buffer[M];
 
 public:
-    FormatBuffer() noexcept {
-        clear();
-    }
-
     template <typename... Types>
-    FormatBuffer(const char* fmt, Types... args) noexcept {
+    FormatBuffer(LPCTSTR fmt, Types... args) noexcept {
         print(fmt, args...);
     }
 
     template <typename... Types>
-    void print(const char* fmt, Types... args) noexcept {
+    void print(LPCTSTR fmt, Types... args) noexcept {
         print(m_buffer, fmt, args...);
     }
 
-    void clear() noexcept {
-        m_buffer[0] = '\0';
-    }
-
-    template <std::size_t N, typename... Types>
-    static void print(char (&buf)[N], const char* fmt, Types... args) noexcept
-        requires (N > 0) {
-        std::size_t i = 0;
-        [[maybe_unused]] const auto copyFromString = [&buf, &i](const char* str) noexcept -> void {
+    template <SIZE_T N, typename... Types> requires (N > 0)
+    static void print(TCHAR (&buf)[N], LPCTSTR fmt, Types... args) noexcept {
+        SIZE_T i = 0;
+        [[maybe_unused]] const auto copyFromString = [&buf, &i](LPCTSTR str) noexcept -> void {
             do {
                 buf[i++] = *str++;
-            } while (*str != '\0' && i < N - 1);
+            } while (*str != _T('\0') && i < N - 1);
         };
         const auto copyFromFormat = [&buf, &fmt, &i]() noexcept -> bool {
             do {
-                if (*fmt == '%' && *++fmt != '%') {
+                if (*fmt == _T('%') && *++fmt != _T('%')) {
                     return true;
                 }
                 buf[i++] = *fmt++;
-            } while (*fmt != '\0' && i < N - 1);
+            } while (*fmt != _T('\0') && i < N - 1);
             return false;
         };
         (
             [&]<typename T>(T value) noexcept -> void {
-                if (*fmt != '\0' && i < N - 1) {
-                    const bool foundSpec = copyFromFormat();
-                    if (foundSpec != false && *fmt != '\0') {
-                        const char spec = *fmt++;
-                        if constexpr (std::is_same_v<T, const char*> ||
-                                      std::is_same_v<T, char*>) {
-                            if (spec == 's') {
-                                copyFromString(value);
-                            }
-                        } else {
-                            static_assert(std::is_same_v<T, void>);
+            if (*fmt != _T('\0') && i < N - 1) {
+                const bool foundSpec = copyFromFormat();
+                if (foundSpec != false && *fmt != _T('\0')) {
+                    const TCHAR spec = *fmt++;
+                    if constexpr (std::is_same_v<T, LPCTSTR> || std::is_same_v<T, LPTSTR>) {
+                        if (spec == _T('s')) {
+                            copyFromString(value);
                         }
+                    } else {
+                        static_assert(std::is_same_v<T, void>);
                     }
                 }
-            }(args),
+            }
+        }(args),
             ...);
-        while (*fmt != '\0' && i < N - 1) {
+        while (*fmt != _T('\0') && i < N - 1) {
             const bool foundSpec = copyFromFormat();
-            if (foundSpec != false && *fmt != '\0') {
+            if (foundSpec != false && *fmt != _T('\0')) {
                 buf[i++] = *fmt++;
             }
         }
-        buf[i] = '\0';
+        buf[i] = _T('\0');
     }
 
-    const char* c_str() const noexcept {
+    LPCTSTR c_str() const noexcept {
         return m_buffer;
     }
 };
-
-template <std::size_t N, typename... Types>
-void format(char (&buf)[N], const char* fmt, Types... args) noexcept {
-    FormatBuffer<N>::print(buf, fmt, args...);
-}
 
 struct HandleFunctor {
     using Handle = HANDLE;
@@ -126,7 +111,7 @@ public:
 
     static Params* create(Params& self, LPCTSTR lpFilename, LPCTSTR lpSection) {
         const struct { LPCTSTR lpName; LPTSTR lpBuffer; DWORD nSize; } kEntries[] = {
-            { _T("Command"), self.szCommand, ARRAYSIZE(self.szCommand) },            
+            { _T("Command"), self.szCommand, ARRAYSIZE(self.szCommand) },
             { _T("StartupPath"), self.szStartupPath, ARRAYSIZE(self.szStartupPath) },
             { _T("Boot"), self.szBoot, ARRAYSIZE(self.szBoot) },
             { _T("Machine"), self.szMachine, ARRAYSIZE(self.szMachine) },
@@ -142,55 +127,75 @@ public:
                 return nullptr;
             }
         }
-        return &self;
+        return lstrcmp(self.szCommand, _T("")) != 0 ? &self : nullptr;
     }
 };
 
 namespace {
-    constexpr LPCTSTR kMutexName = _T("qemu-control-c154b33e36c329488700dae19dae8ddf");
-    constexpr LPCTSTR kSection = _T("QEMU");
 
-    struct {
-        Params params{};
-    } inst;
-}
+constexpr LPCTSTR kMutexName = _T("qemu-control-c154b33e36c329488700dae19dae8ddf");
+constexpr LPCTSTR kSection = _T("QEMU");
+constexpr LPCTSTR kAppName = _T("QEMU Control");
+
+struct {
+    Params params{};
+} app;
+
+} // namespace
 
 int WINAPI _tWinMain(_In_ HINSTANCE hInst, _In_opt_ HINSTANCE hPrevInst, _In_ LPTSTR cmdParam, _In_ int cmdShow) {
+    if (cmdParam == nullptr || lstrcmp(cmdParam, _T("")) == 0) {
+        MessageBox(nullptr, _T("No configuration file specified."), kAppName, MB_OK | MB_ICONERROR);
+        return EXIT_FAILURE;
+    }
     if (MutexScope mutex = CreateMutex(0, FALSE, kMutexName)) {
         if (GetLastError() == ERROR_ALREADY_EXISTS) {
-            return 0;
-        } else {
-            if (Params* params = Params::create(inst.params, cmdParam, kSection)) {
-                if (lstrcmp(params->szCommand, _T("")) != 0) {
-                    FormatBuffer<4096> buffer{ "%s %s %s %s %s %s %s", params->szBoot, params->szMachine, params->szDisplay, params->szClock, params->szTablet, params->szVirtual, params->szNetwork };
-                    SHELLEXECUTEINFO sh{
-                        .cbSize = sizeof(sh),
-                        .fMask = SEE_MASK_NOCLOSEPROCESS,
-                        .hwnd = nullptr,
-                        .lpVerb = nullptr,
-                        .lpFile = params->szCommand,
-                        .lpParameters = buffer.c_str(),
-                        .lpDirectory = params->szStartupPath,
-                        .nShow = SW_SHOWDEFAULT,
-                        .hInstApp = nullptr,
-                        .lpIDList = nullptr,
-                        .lpClass = nullptr,
-                        .hkeyClass = nullptr,
-                        .dwHotKey = 0,
-                        .hIcon = nullptr,
-                        .hProcess = nullptr
-                    };
-                    if ((ShellExecuteEx(&sh) != FALSE) && (sh.hProcess != nullptr)) {
-                        if (WaitForSingleObject(sh.hProcess, INFINITE) == WAIT_OBJECT_0) {
-                            DWORD exitCode{};
-                            if (GetExitCodeProcess(sh.hProcess, &exitCode) != FALSE) {
-                                return exitCode;
-                            }
-                        }
+            return EXIT_SUCCESS;
+        }
+        if (![](LPCTSTR lpFilePath) noexcept -> bool {
+            DWORD attrs = GetFileAttributes(lpFilePath);
+            if (attrs == INVALID_FILE_ATTRIBUTES) {
+                DWORD error = GetLastError();
+                return error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND ? false : true;
+            }
+            return attrs & FILE_ATTRIBUTE_DIRECTORY ? false : true;
+        }(cmdParam)) {
+            FormatBuffer<1024> message{ _T("Configuration file does not exist: %s"), cmdParam };
+            MessageBox(nullptr, message.c_str(), kAppName, MB_OK | MB_ICONERROR);
+        } else if (Params* params = Params::create(app.params, cmdParam, kSection)) {
+            FormatBuffer<4096> arguments{ _T("%s %s %s %s %s %s %s"), params->szBoot, params->szMachine, params->szDisplay, params->szClock, params->szTablet, params->szVirtual, params->szNetwork };
+            SHELLEXECUTEINFO sh{
+                    .cbSize = sizeof(sh),
+                    .fMask = SEE_MASK_NOCLOSEPROCESS,
+                    .hwnd = nullptr,
+                    .lpVerb = nullptr,
+                    .lpFile = params->szCommand,
+                    .lpParameters = arguments.c_str(),
+                    .lpDirectory = params->szStartupPath,
+                    .nShow = SW_SHOWDEFAULT,
+                    .hInstApp = nullptr,
+                    .lpIDList = nullptr,
+                    .lpClass = nullptr,
+                    .hkeyClass = nullptr,
+                    .dwHotKey = 0,
+                    .hIcon = nullptr,
+                    .hProcess = nullptr
+            };
+            if (ShellExecuteEx(&sh) != FALSE && sh.hProcess != nullptr) {
+                if (WaitForSingleObject(sh.hProcess, INFINITE) == WAIT_OBJECT_0) {
+                    DWORD exitCode{};
+                    if (GetExitCodeProcess(sh.hProcess, &exitCode) != FALSE && exitCode == 0) {
+                        return EXIT_SUCCESS;
                     }
                 }
+            } else {
+                FormatBuffer<1024> message{ _T("Failed to execute command: %s"), params->szCommand };
+                MessageBox(nullptr, message.c_str(), kAppName, MB_OK | MB_ICONERROR);
             }
+        } else {
+            FormatBuffer<1024> message{ _T("Failed to read configuration from file: %s"), cmdParam };
+            MessageBox(nullptr, message.c_str(), kAppName, MB_OK | MB_ICONERROR);
         }
     }
-    return -1;
+    return EXIT_FAILURE;
 }
